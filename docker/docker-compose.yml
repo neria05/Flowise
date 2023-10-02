@@ -2,7 +2,7 @@ version: '3.1'
 
 services:
     flowise:
-        image: flowiseai/flowise
+        image: neria05/Flowise
         restart: always
         environment:
             - PORT=${PORT}
@@ -18,5 +18,5 @@ services:
         ports:
             - '${PORT}:${PORT}'
         volumes:
-            - ~/.flowise:/root/.flowise
+            - ~/.neriflow:/root/.neriflow
         command: /bin/sh -c "sleep 3; flowise start"
