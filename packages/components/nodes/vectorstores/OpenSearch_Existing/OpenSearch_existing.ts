@@ -1,13 +1,10 @@
 import { INode, INodeData, INodeOutputsValue, INodeParams } from '../../../src/Interface'
 import { OpenSearchVectorStore } from 'langchain/vectorstores/opensearch'
 import { Embeddings } from 'langchain/embeddings/base'
-import { Document } from 'langchain/document'
-import { Client, RequestParams } from '@opensearch-project/opensearch'
-import { flatten } from 'lodash'
+import { Client } from '@opensearch-project/opensearch'
 import { getBaseClasses } from '../../../src/utils'
-import { buildMetadataTerms } from './core'
 
-class OpenSearchUpsert_VectorStores implements INode {
+class OpenSearch_Existing_VectorStores implements INode {
     label: string
     name: string
     version: number
@@ -20,21 +17,15 @@ class OpenSearchUpsert_VectorStores implements INode {
     outputs: INodeOutputsValue[]
 
     constructor() {
-        this.label = 'OpenSearch Upsert Document'
-        this.name = 'openSearchUpsertDocument'
+        this.label = 'OpenSearch Load Existing Index'
+        this.name = 'openSearchExistingIndex'
         this.version = 1.0
         this.type = 'OpenSearch'
         this.icon = 'opensearch.png'
         this.category = 'Vector Stores'
-        this.description = 'Upsert documents to OpenSearch'
+        this.description = 'Load existing index from OpenSearch (i.e: Document has been upserted)'
         this.baseClasses = [this.type, 'VectorStoreRetriever', 'BaseRetriever']
         this.inputs = [
-            {
-                label: 'Document',
-                name: 'document',
-                type: 'Document',
-                list: true
-            },
             {
                 label: 'Embeddings',
                 name: 'embeddings',
@@ -76,7 +67,6 @@ class OpenSearchUpsert_VectorStores implements INode {
     }
 
     async init(nodeData: INodeData): Promise<any> {
-        const docs = nodeData.inputs?.document as Document[]
         const embeddings = nodeData.inputs?.embeddings as Embeddings
         const opensearchURL = nodeData.inputs?.opensearchURL as string
         const indexName = nodeData.inputs?.indexName as string
@@ -84,55 +74,14 @@ class OpenSearchUpsert_VectorStores implements INode {
         const topK = nodeData.inputs?.topK as string
         const k = topK ? parseFloat(topK) : 4
 
-        const flattenDocs = docs && docs.length ? flatten(docs) : []
-        const finalDocs = []
-        for (let i = 0; i < flattenDocs.length; i += 1) {
-            finalDocs.push(new Document(flattenDocs[i]))
-        }
-
         const client = new Client({
             nodes: [opensearchURL]
         })
 
-        const vectorStore = await OpenSearchVectorStore.fromDocuments(finalDocs, embeddings, {
+        const vectorStore = new OpenSearchVectorStore(embeddings, {
             client,
             indexName
         })
-
-        vectorStore.similaritySearchVectorWithScore = async (
-            query: number[],
-            k: number,
-            filter?: object | undefined
-        ): Promise<[Document, number][]> => {
-            const search: RequestParams.Search = {
-                index: indexName,
-                body: {
-                    query: {
-                        bool: {
-                            filter: { bool: { must: buildMetadataTerms(filter) } },
-                            must: [
-                                {
-                                    knn: {
-                                        embedding: { vector: query, k }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    size: k
-                }
-            }
-
-            const { body } = await client.search(search)
-
-            return body.hits.hits.map((hit: any) => [
-                new Document({
-                    pageContent: hit._source.text,
-                    metadata: hit._source.metadata
-                }),
-                hit._score
-            ])
-        }
 
         if (output === 'retriever') {
             const retriever = vectorStore.asRetriever(k)
@@ -145,4 +94,4 @@ class OpenSearchUpsert_VectorStores implements INode {
     }
 }
 
-module.exports = { nodeClass: OpenSearchUpsert_VectorStores }
+module.exports = { nodeClass: OpenSearch_Existing_VectorStores }

@@ -71,7 +71,9 @@ class ConversationChain_Chains implements INode {
         const flattenDocs = docs && docs.length ? flatten(docs) : []
         const finalDocs = []
         for (let i = 0; i < flattenDocs.length; i += 1) {
-            finalDocs.push(new Document(flattenDocs[i]))
+            if (flattenDocs[i] && flattenDocs[i].pageContent) {
+                finalDocs.push(new Document(flattenDocs[i]))
+            }
         }
 
         let finalText = ''
@@ -90,7 +92,7 @@ class ConversationChain_Chains implements INode {
             verbose: process.env.DEBUG === 'true' ? true : false
         }
 
-        const chatPrompt = ChatPromptTemplate.fromPromptMessages([
+        const chatPrompt = ChatPromptTemplate.fromMessages([
             SystemMessagePromptTemplate.fromTemplate(prompt ? `${prompt}\n${systemMessage}` : systemMessage),
             new MessagesPlaceholder(memory.memoryKey ?? 'chat_history'),
             HumanMessagePromptTemplate.fromTemplate('{input}')
