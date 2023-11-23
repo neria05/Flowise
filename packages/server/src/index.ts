@@ -356,8 +356,12 @@ export class App {
             this.AppDataSource.getRepository(ChatFlow).merge(chatflow, updateChatFlow)
             const result = await this.AppDataSource.getRepository(ChatFlow).save(chatflow)
 
-            // Update chatflowpool inSync to false, to build Langchain again because data has been changed
-            this.chatflowPool.updateInSync(chatflow.id, false)
+            // chatFlowPool is initialized only when a flow is opened
+            // if the user attempts to rename/update category without opening any flow, chatFlowPool will be undefined
+            if (this.chatflowPool) {
+                // Update chatflowpool inSync to false, to build Langchain again because data has been changed
+                this.chatflowPool.updateInSync(chatflow.id, false)
+            }
 
             return res.json(result)
         })
@@ -1144,28 +1148,52 @@ export class App {
         // API Keys
         // ----------------------------------------
 
+        const addChatflowsCount = async (keys: any, res: Response) => {
+            if (keys) {
+                const updatedKeys: any[] = []
+                //iterate through keys and get chatflows
+                for (const key of keys) {
+                    const chatflows = await this.AppDataSource.getRepository(ChatFlow)
+                        .createQueryBuilder('cf')
+                        .where('cf.apikeyid = :apikeyid', { apikeyid: key.id })
+                        .getMany()
+                    const linkedChatFlows: any[] = []
+                    chatflows.map((cf) => {
+                        linkedChatFlows.push({
+                            flowName: cf.name,
+                            category: cf.category,
+                            updatedDate: cf.updatedDate
+                        })
+                    })
+                    key.chatFlows = linkedChatFlows
+                    updatedKeys.push(key)
+                }
+                return res.json(updatedKeys)
+            }
+            return res.json(keys)
+        }
         // Get api keys
         this.app.get('/api/v1/apikey', async (req: Request, res: Response) => {
             const keys = await getAPIKeys()
-            return res.json(keys)
+            return addChatflowsCount(keys, res)
         })
 
         // Add new api key
         this.app.post('/api/v1/apikey', async (req: Request, res: Response) => {
             const keys = await addAPIKey(req.body.keyName)
-            return res.json(keys)
+            return addChatflowsCount(keys, res)
         })
 
         // Update api key
         this.app.put('/api/v1/apikey/:id', async (req: Request, res: Response) => {
             const keys = await updateAPIKey(req.params.id, req.body.keyName)
-            return res.json(keys)
+            return addChatflowsCount(keys, res)
         })
 
         // Delete new api key
         this.app.delete('/api/v1/apikey/:id', async (req: Request, res: Response) => {
             const keys = await deleteAPIKey(req.params.id)
-            return res.json(keys)
+            return addChatflowsCount(keys, res)
         })
 
         // Verify api key
