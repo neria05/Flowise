@@ -20,10 +20,10 @@ class OpenAIFunctionAgent_Agents implements INode {
     constructor() {
         this.label = 'OpenAI Function Agent'
         this.name = 'openAIFunctionAgent'
-        this.version = 2.0
+        this.version = 3.0
         this.type = 'AgentExecutor'
         this.category = 'Agents'
-        this.icon = 'openai.png'
+        this.icon = 'function.svg'
         this.description = `An agent that uses Function Calling to pick the tool and args to call`
         this.baseClasses = [this.type, ...getBaseClasses(AgentExecutor)]
         this.inputs = [
@@ -41,7 +41,7 @@ class OpenAIFunctionAgent_Agents implements INode {
             {
                 label: 'OpenAI/Azure Chat Model',
                 name: 'model',
-                type: 'ChatOpenAI | AzureChatOpenAI'
+                type: 'BaseChatModel'
             },
             {
                 label: 'System Message',
