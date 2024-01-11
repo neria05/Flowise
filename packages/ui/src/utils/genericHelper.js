@@ -39,8 +39,23 @@ export const initNode = (nodeData, newNodeId) => {
     const incoming = nodeData.inputs ? nodeData.inputs.length : 0
     const outgoing = 1
 
-    const whitelistTypes = ['options', 'string', 'number', 'boolean', 'password', 'json', 'code', 'date', 'file', 'folder']
+    const whitelistTypes = [
+        'asyncOptions',
+        'options',
+        'multiOptions',
+        'datagrid',
+        'string',
+        'number',
+        'boolean',
+        'password',
+        'json',
+        'code',
+        'date',
+        'file',
+        'folder'
+    ]
 
+    // Inputs
     for (let i = 0; i < incoming; i += 1) {
         const newInput = {
             ...nodeData.inputs[i],
@@ -53,6 +68,16 @@ export const initNode = (nodeData, newNodeId) => {
         }
     }
 
+    // Credential
+    if (nodeData.credential) {
+        const newInput = {
+            ...nodeData.credential,
+            id: `${newNodeId}-input-${nodeData.credential.name}-${nodeData.credential.type}`
+        }
+        inputParams.unshift(newInput)
+    }
+
+    // Outputs
     const outputAnchors = []
     for (let i = 0; i < outgoing; i += 1) {
         if (nodeData.outputs && nodeData.outputs.length) {
@@ -129,6 +154,8 @@ export const initNode = (nodeData, newNodeId) => {
             }
         ]
     */
+
+    // Inputs
     if (nodeData.inputs) {
         nodeData.inputAnchors = inputAnchors
         nodeData.inputParams = inputParams
@@ -139,25 +166,20 @@ export const initNode = (nodeData, newNodeId) => {
         nodeData.inputs = {}
     }
 
+    // Outputs
     if (nodeData.outputs) {
         nodeData.outputs = initializeDefaultNodeData(outputAnchors)
     } else {
         nodeData.outputs = {}
     }
-
     nodeData.outputAnchors = outputAnchors
+
+    // Credential
+    if (nodeData.credential) nodeData.credential = ''
+
     nodeData.id = newNodeId
 
     return nodeData
-}
-
-export const getEdgeLabelName = (source) => {
-    const sourceSplit = source.split('-')
-    if (sourceSplit.length && sourceSplit[0].includes('ifElse')) {
-        const outputAnchorsIndex = sourceSplit[sourceSplit.length - 1]
-        return outputAnchorsIndex === '0' ? 'true' : 'false'
-    }
-    return ''
 }
 
 export const isValidConnection = (connection, reactFlowInstance) => {
@@ -168,8 +190,10 @@ export const isValidConnection = (connection, reactFlowInstance) => {
     //sourceHandle: "llmChain_0-output-llmChain-BaseChain"
     //targetHandle: "mrlkAgentLLM_0-input-model-BaseLanguageModel"
 
-    const sourceTypes = sourceHandle.split('-')[sourceHandle.split('-').length - 1].split('|')
-    const targetTypes = targetHandle.split('-')[targetHandle.split('-').length - 1].split('|')
+    let sourceTypes = sourceHandle.split('-')[sourceHandle.split('-').length - 1].split('|')
+    sourceTypes = sourceTypes.map((s) => s.trim())
+    let targetTypes = targetHandle.split('-')[targetHandle.split('-').length - 1].split('|')
+    targetTypes = targetTypes.map((t) => t.trim())
 
     if (targetTypes.some((t) => sourceTypes.includes(t))) {
         let targetNode = reactFlowInstance.getNode(target)
@@ -249,6 +273,7 @@ export const generateExportFlowData = (flowData) => {
         const newNodeData = {
             id: node.data.id,
             label: node.data.label,
+            version: node.data.version,
             name: node.data.name,
             type: node.data.type,
             baseClasses: node.data.baseClasses,
@@ -285,7 +310,7 @@ export const generateExportFlowData = (flowData) => {
 }
 
 export const getAvailableNodesForVariable = (nodes, edges, target, targetHandle) => {
-    // example edge id = "llmChain_0-llmChain_0-output-outputPrediction-string-llmChain_1-llmChain_1-input-promptValues-string"
+    // example edge id = "llmChain_0-llmChain_0-output-outputPrediction-string|json-llmChain_1-llmChain_1-input-promptValues-string"
     //                    {source}  -{sourceHandle}                           -{target}  -{targetHandle}
     const parentNodes = []
     const inputEdges = edges.filter((edg) => edg.target === target && edg.targetHandle === targetHandle)
@@ -296,6 +321,57 @@ export const getAvailableNodesForVariable = (nodes, edges, target, targetHandle)
         }
     }
     return parentNodes
+}
+
+export const getUpsertDetails = (nodes, edges) => {
+    const vsNodes = nodes.filter(
+        (node) =>
+            node.data.category === 'Vector Stores' && !node.data.label.includes('Upsert') && !node.data.label.includes('Load Existing')
+    )
+    const vsNodeIds = vsNodes.map((vs) => vs.data.id)
+
+    const upsertNodes = []
+    const seenVsNodeIds = []
+    for (const edge of edges) {
+        if (vsNodeIds.includes(edge.source) || vsNodeIds.includes(edge.target)) {
+            const vsNode = vsNodes.find((node) => node.data.id === edge.source || node.data.id === edge.target)
+            if (!vsNode || seenVsNodeIds.includes(vsNode.data.id)) continue
+            seenVsNodeIds.push(vsNode.data.id)
+
+            // Found Vector Store Node, proceed to find connected Document Loader node
+            let connectedDocs = []
+
+            if (vsNode.data.inputs.document) connectedDocs = [...new Set(vsNode.data.inputs.document)]
+
+            if (connectedDocs.length) {
+                const innerNodes = [vsNode]
+
+                if (vsNode.data.inputs.embeddings) {
+                    const embeddingsId = vsNode.data.inputs.embeddings.replace(/{{|}}/g, '').split('.')[0]
+                    innerNodes.push(nodes.find((node) => node.data.id === embeddingsId))
+                }
+
+                for (const doc of connectedDocs) {
+                    const docId = doc.replace(/{{|}}/g, '').split('.')[0]
+                    const docNode = nodes.find((node) => node.data.id === docId)
+                    if (docNode) innerNodes.push(docNode)
+
+                    // Found Document Loader Node, proceed to find connected Text Splitter node
+                    if (docNode && docNode.data.inputs.textSplitter) {
+                        const textSplitterId = docNode.data.inputs.textSplitter.replace(/{{|}}/g, '').split('.')[0]
+                        const textSplitterNode = nodes.find((node) => node.data.id === textSplitterId)
+                        if (textSplitterNode) innerNodes.push(textSplitterNode)
+                    }
+                }
+
+                upsertNodes.push({
+                    vectorNode: vsNode,
+                    nodes: innerNodes.reverse()
+                })
+            }
+        }
+    }
+    return upsertNodes
 }
 
 export const rearrangeToolsOrdering = (newValues, sourceNodeId) => {
@@ -333,4 +409,197 @@ export const throttle = (func, limit) => {
             }, limit - (Date.now() - lastRan))
         }
     }
+}
+
+export const generateRandomGradient = () => {
+    function randomColor() {
+        var color = 'rgb('
+        for (var i = 0; i < 3; i++) {
+            var random = Math.floor(Math.random() * 256)
+            color += random
+            if (i < 2) {
+                color += ','
+            }
+        }
+        color += ')'
+        return color
+    }
+
+    var gradient = 'linear-gradient(' + randomColor() + ', ' + randomColor() + ')'
+
+    return gradient
+}
+
+export const getInputVariables = (paramValue) => {
+    let returnVal = paramValue
+    const variableStack = []
+    const inputVariables = []
+    let startIdx = 0
+    const endIdx = returnVal.length
+
+    while (startIdx < endIdx) {
+        const substr = returnVal.substring(startIdx, startIdx + 1)
+
+        // Store the opening double curly bracket
+        if (substr === '{') {
+            variableStack.push({ substr, startIdx: startIdx + 1 })
+        }
+
+        // Found the complete variable
+        if (substr === '}' && variableStack.length > 0 && variableStack[variableStack.length - 1].substr === '{') {
+            const variableStartIdx = variableStack[variableStack.length - 1].startIdx
+            const variableEndIdx = startIdx
+            const variableFullPath = returnVal.substring(variableStartIdx, variableEndIdx)
+            inputVariables.push(variableFullPath)
+            variableStack.pop()
+        }
+        startIdx += 1
+    }
+    return inputVariables
+}
+
+export const removeDuplicateURL = (message) => {
+    const visitedURLs = []
+    const newSourceDocuments = []
+
+    if (!message.sourceDocuments) return newSourceDocuments
+
+    message.sourceDocuments.forEach((source) => {
+        if (source.metadata && source.metadata.source) {
+            if (isValidURL(source.metadata.source) && !visitedURLs.includes(source.metadata.source)) {
+                visitedURLs.push(source.metadata.source)
+                newSourceDocuments.push(source)
+            } else if (!isValidURL(source.metadata.source)) {
+                newSourceDocuments.push(source)
+            }
+        } else {
+            newSourceDocuments.push(source)
+        }
+    })
+    return newSourceDocuments
+}
+
+export const isValidURL = (url) => {
+    try {
+        return new URL(url)
+    } catch (err) {
+        return undefined
+    }
+}
+
+export const formatDataGridRows = (rows) => {
+    try {
+        const parsedRows = typeof rows === 'string' ? JSON.parse(rows) : rows
+        return parsedRows.map((sch, index) => {
+            return {
+                ...sch,
+                id: index
+            }
+        })
+    } catch (e) {
+        return []
+    }
+}
+
+export const setLocalStorageChatflow = (chatflowid, chatId, chatHistory) => {
+    const chatDetails = localStorage.getItem(`${chatflowid}_INTERNAL`)
+    const obj = {}
+    if (chatId) obj.chatId = chatId
+    if (chatHistory) obj.chatHistory = chatHistory
+
+    if (!chatDetails) {
+        localStorage.setItem(`${chatflowid}_INTERNAL`, JSON.stringify(obj))
+    } else {
+        try {
+            const parsedChatDetails = JSON.parse(chatDetails)
+            localStorage.setItem(`${chatflowid}_INTERNAL`, JSON.stringify({ ...parsedChatDetails, ...obj }))
+        } catch (e) {
+            const chatId = chatDetails
+            obj.chatId = chatId
+            localStorage.setItem(`${chatflowid}_INTERNAL`, JSON.stringify(obj))
+        }
+    }
+}
+
+export const unshiftFiles = (configData) => {
+    const filesConfig = configData.find((config) => config.name === 'files')
+    if (filesConfig) {
+        configData = configData.filter((config) => config.name !== 'files')
+        configData.unshift(filesConfig)
+    }
+    return configData
+}
+
+export const getConfigExamplesForJS = (configData, bodyType, isMultiple, stopNodeId) => {
+    let finalStr = ''
+    configData = unshiftFiles(configData)
+    const loop = Math.min(configData.length, 4)
+    for (let i = 0; i < loop; i += 1) {
+        const config = configData[i]
+        let exampleVal = `"example"`
+        if (config.type === 'string') exampleVal = `"example"`
+        else if (config.type === 'boolean') exampleVal = `true`
+        else if (config.type === 'number') exampleVal = `1`
+        else if (config.type === 'json') exampleVal = `{ "key": "val" }`
+        else if (config.name === 'files') exampleVal = `input.files[0]`
+        finalStr += bodyType === 'json' ? `\n      "${config.name}": ${exampleVal},` : `formData.append("${config.name}", ${exampleVal})\n`
+        if (i === loop - 1 && bodyType !== 'json')
+            finalStr += !isMultiple
+                ? ``
+                : stopNodeId
+                ? `formData.append("stopNodeId", "${stopNodeId}")\n`
+                : `formData.append("question", "Hey, how are you?")\n`
+    }
+    return finalStr
+}
+
+export const getConfigExamplesForPython = (configData, bodyType, isMultiple, stopNodeId) => {
+    let finalStr = ''
+    configData = unshiftFiles(configData)
+    const loop = Math.min(configData.length, 4)
+    for (let i = 0; i < loop; i += 1) {
+        const config = configData[i]
+        let exampleVal = `"example"`
+        if (config.type === 'string') exampleVal = `"example"`
+        else if (config.type === 'boolean') exampleVal = `true`
+        else if (config.type === 'number') exampleVal = `1`
+        else if (config.type === 'json') exampleVal = `{ "key": "val" }`
+        else if (config.name === 'files') continue
+        finalStr += bodyType === 'json' ? `\n        "${config.name}": ${exampleVal},` : `\n    "${config.name}": ${exampleVal},`
+        if (i === loop - 1 && bodyType !== 'json')
+            finalStr += !isMultiple
+                ? `\n`
+                : stopNodeId
+                ? `\n    "stopNodeId": "${stopNodeId}"\n`
+                : `\n    "question": "Hey, how are you?"\n`
+    }
+    return finalStr
+}
+
+export const getConfigExamplesForCurl = (configData, bodyType, isMultiple, stopNodeId) => {
+    let finalStr = ''
+    configData = unshiftFiles(configData)
+    const loop = Math.min(configData.length, 4)
+    for (let i = 0; i < loop; i += 1) {
+        const config = configData[i]
+        let exampleVal = `example`
+        if (config.type === 'string') exampleVal = bodyType === 'json' ? `"example"` : `example`
+        else if (config.type === 'boolean') exampleVal = `true`
+        else if (config.type === 'number') exampleVal = `1`
+        else if (config.type === 'json') exampleVal = `{key:val}`
+        else if (config.name === 'files')
+            exampleVal = `@/home/user1/Desktop/example${config.type.includes(',') ? config.type.split(',')[0] : config.type}`
+        finalStr += bodyType === 'json' ? `"${config.name}": ${exampleVal}` : `\n     -F "${config.name}=${exampleVal}"`
+        if (i === loop - 1)
+            finalStr +=
+                bodyType === 'json'
+                    ? ` }`
+                    : !isMultiple
+                    ? ``
+                    : stopNodeId
+                    ? ` \\\n     -F "stopNodeId=${stopNodeId}"`
+                    : ` \\\n     -F "question=Hey, how are you?"`
+        else finalStr += bodyType === 'json' ? `, ` : ` \\`
+    }
+    return finalStr
 }

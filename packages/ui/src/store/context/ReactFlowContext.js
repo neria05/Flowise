@@ -1,7 +1,9 @@
 import { createContext, useState } from 'react'
+import { useDispatch } from 'react-redux'
 import PropTypes from 'prop-types'
 import { getUniqueNodeId } from 'utils/genericHelper'
 import { cloneDeep } from 'lodash'
+import { SET_DIRTY } from 'store/actions'
 
 const initialValue = {
     reactFlowInstance: null,
@@ -14,17 +16,20 @@ const initialValue = {
 export const flowContext = createContext(initialValue)
 
 export const ReactFlowContext = ({ children }) => {
+    const dispatch = useDispatch()
     const [reactFlowInstance, setReactFlowInstance] = useState(null)
 
     const deleteNode = (nodeid) => {
         deleteConnectedInput(nodeid, 'node')
         reactFlowInstance.setNodes(reactFlowInstance.getNodes().filter((n) => n.id !== nodeid))
         reactFlowInstance.setEdges(reactFlowInstance.getEdges().filter((ns) => ns.source !== nodeid && ns.target !== nodeid))
+        dispatch({ type: SET_DIRTY })
     }
 
     const deleteEdge = (edgeid) => {
         deleteConnectedInput(edgeid, 'edge')
         reactFlowInstance.setEdges(reactFlowInstance.getEdges().filter((edge) => edge.id !== edgeid))
+        dispatch({ type: SET_DIRTY })
     }
 
     const deleteConnectedInput = (id, type) => {
@@ -92,9 +97,8 @@ export const ReactFlowContext = ({ children }) => {
                 selected: false
             }
 
-            const dataKeys = ['inputParams', 'inputAnchors', 'outputAnchors']
-
-            for (const key of dataKeys) {
+            const inputKeys = ['inputParams', 'inputAnchors']
+            for (const key of inputKeys) {
                 for (const item of duplicatedNode.data[key]) {
                     if (item.id) {
                         item.id = item.id.replace(id, newNodeId)
@@ -102,7 +106,37 @@ export const ReactFlowContext = ({ children }) => {
                 }
             }
 
+            const outputKeys = ['outputAnchors']
+            for (const key of outputKeys) {
+                for (const item of duplicatedNode.data[key]) {
+                    if (item.id) {
+                        item.id = item.id.replace(id, newNodeId)
+                    }
+                    if (item.options) {
+                        for (const output of item.options) {
+                            output.id = output.id.replace(id, newNodeId)
+                        }
+                    }
+                }
+            }
+
+            // Clear connected inputs
+            for (const inputName in duplicatedNode.data.inputs) {
+                if (
+                    typeof duplicatedNode.data.inputs[inputName] === 'string' &&
+                    duplicatedNode.data.inputs[inputName].startsWith('{{') &&
+                    duplicatedNode.data.inputs[inputName].endsWith('}}')
+                ) {
+                    duplicatedNode.data.inputs[inputName] = ''
+                } else if (Array.isArray(duplicatedNode.data.inputs[inputName])) {
+                    duplicatedNode.data.inputs[inputName] = duplicatedNode.data.inputs[inputName].filter(
+                        (item) => !(typeof item === 'string' && item.startsWith('{{') && item.endsWith('}}'))
+                    )
+                }
+            }
+
             reactFlowInstance.setNodes([...nodes, duplicatedNode])
+            dispatch({ type: SET_DIRTY })
         }
     }
 

@@ -2,6 +2,8 @@
 
 # Flowise Components
 
+English | [中文](./README-ZH.md)
+
 Apps integration for Flowise. Contain Nodes and Credentials.
 
 ![Flowise](https://github.com/FlowiseAI/Flowise/blob/main/images/flowise.gif?raw=true)
@@ -12,14 +14,6 @@ Install:
 npm i flowise-components
 ```
 
-## Debug
-
-To view all the logs, create an `.env` file and add:
-
-```
-DEBUG=true
-```
-
 ## License
 
-Source code in this repository is made available under the [MIT License](https://github.com/FlowiseAI/Flowise/blob/master/LICENSE.md).
+Source code in this repository is made available under the [Apache License Version 2.0](https://github.com/FlowiseAI/Flowise/blob/master/LICENSE.md).

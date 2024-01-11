@@ -1,11 +1,13 @@
 import { BaseLanguageModel } from 'langchain/base_language'
 import { ICommonObject, INode, INodeData, INodeParams, PromptRetriever } from '../../../src/Interface'
-import { CustomChainHandler, getBaseClasses } from '../../../src/utils'
+import { getBaseClasses } from '../../../src/utils'
 import { MultiPromptChain } from 'langchain/chains'
+import { ConsoleCallbackHandler, CustomChainHandler, additionalCallbacks } from '../../../src/handler'
 
 class MultiPromptChain_Chains implements INode {
     label: string
     name: string
+    version: number
     type: string
     icon: string
     category: string
@@ -16,8 +18,9 @@ class MultiPromptChain_Chains implements INode {
     constructor() {
         this.label = 'Multi Prompt Chain'
         this.name = 'multiPromptChain'
+        this.version = 1.0
         this.type = 'MultiPromptChain'
-        this.icon = 'chain.svg'
+        this.icon = 'prompt.svg'
         this.category = 'Chains'
         this.description = 'Chain automatically picks an appropriate prompt from multiple prompt templates'
         this.baseClasses = [this.type, ...getBaseClasses(MultiPromptChain)]
@@ -49,9 +52,12 @@ class MultiPromptChain_Chains implements INode {
             promptTemplates.push(prompt.systemMessage)
         }
 
-        const chain = MultiPromptChain.fromPrompts(model, promptNames, promptDescriptions, promptTemplates, undefined, {
-            verbose: process.env.DEBUG === 'true' ? true : false
-        } as any)
+        const chain = MultiPromptChain.fromLLMAndPrompts(model, {
+            promptNames,
+            promptDescriptions,
+            promptTemplates,
+            llmChainOpts: { verbose: process.env.DEBUG === 'true' ? true : false }
+        })
 
         return chain
     }
@@ -60,12 +66,15 @@ class MultiPromptChain_Chains implements INode {
         const chain = nodeData.instance as MultiPromptChain
         const obj = { input }
 
+        const loggerHandler = new ConsoleCallbackHandler(options.logger)
+        const callbacks = await additionalCallbacks(nodeData, options)
+
         if (options.socketIO && options.socketIOClientId) {
-            const handler = new CustomChainHandler(options.socketIO, options.socketIOClientId)
-            const res = await chain.call(obj, [handler])
+            const handler = new CustomChainHandler(options.socketIO, options.socketIOClientId, 2)
+            const res = await chain.call(obj, [loggerHandler, handler, ...callbacks])
             return res?.text
         } else {
-            const res = await chain.call(obj)
+            const res = await chain.call(obj, [loggerHandler, ...callbacks])
             return res?.text
         }
     }

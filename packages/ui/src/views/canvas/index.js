@@ -12,6 +12,7 @@ import {
     enqueueSnackbar as enqueueSnackbarAction,
     closeSnackbar as closeSnackbarAction
 } from 'store/actions'
+import { omit, cloneDeep } from 'lodash'
 
 // material-ui
 import { Toolbar, Box, AppBar, Button } from '@mui/material'
@@ -24,6 +25,7 @@ import CanvasHeader from './CanvasHeader'
 import AddNodes from './AddNodes'
 import ConfirmDialog from 'ui-component/dialog/ConfirmDialog'
 import { ChatPopUp } from 'views/chatmessage/ChatPopUp'
+import { VectorStorePopUp } from 'views/vectorstore/VectorStorePopUp'
 import { flowContext } from 'store/context/ReactFlowContext'
 
 // API
@@ -38,8 +40,11 @@ import useConfirm from 'hooks/useConfirm'
 import { IconX } from '@tabler/icons'
 
 // utils
-import { getUniqueNodeId, initNode, getEdgeLabelName, rearrangeToolsOrdering } from 'utils/genericHelper'
+import { getUniqueNodeId, initNode, rearrangeToolsOrdering, getUpsertDetails } from 'utils/genericHelper'
 import useNotifier from 'utils/useNotifier'
+
+// const
+import { FLOWISE_CREDENTIAL_ID } from 'store/constant'
 
 const nodeTypes = { customNode: CanvasNode }
 const edgeTypes = { buttonedge: ButtonEdge }
@@ -77,6 +82,7 @@ const Canvas = () => {
     const [edges, setEdges, onEdgesChange] = useEdgesState()
 
     const [selectedNode, setSelectedNode] = useState(null)
+    const [isUpsertButtonEnabled, setIsUpsertButtonEnabled] = useState(false)
 
     const reactFlowWrapper = useRef(null)
 
@@ -94,8 +100,7 @@ const Canvas = () => {
         const newEdge = {
             ...params,
             type: 'buttonedge',
-            id: `${params.source}-${params.sourceHandle}-${params.target}-${params.targetHandle}`,
-            data: { label: getEdgeLabelName(params.sourceHandle) }
+            id: `${params.source}-${params.sourceHandle}-${params.target}-${params.targetHandle}`
         }
 
         const targetNodeId = params.targetHandle.split('-')[0]
@@ -163,7 +168,8 @@ const Canvas = () => {
         if (isConfirmed) {
             try {
                 await chatflowsApi.deleteChatflow(chatflow.id)
-                navigate(-1)
+                localStorage.removeItem(`${chatflow.id}_INTERNAL`)
+                navigate('/')
             } catch (error) {
                 const errorData = error.response.data || `${error.response.status}: ${error.response.statusText}`
                 enqueueSnackbar({
@@ -185,23 +191,28 @@ const Canvas = () => {
 
     const handleSaveFlow = (chatflowName) => {
         if (reactFlowInstance) {
-            setNodes((nds) =>
-                nds.map((node) => {
-                    node.data = {
-                        ...node.data,
-                        selected: false
-                    }
-                    return node
-                })
-            )
+            const nodes = reactFlowInstance.getNodes().map((node) => {
+                const nodeData = cloneDeep(node.data)
+                if (Object.prototype.hasOwnProperty.call(nodeData.inputs, FLOWISE_CREDENTIAL_ID)) {
+                    nodeData.credential = nodeData.inputs[FLOWISE_CREDENTIAL_ID]
+                    nodeData.inputs = omit(nodeData.inputs, [FLOWISE_CREDENTIAL_ID])
+                }
+                node.data = {
+                    ...nodeData,
+                    selected: false
+                }
+                return node
+            })
 
             const rfInstanceObject = reactFlowInstance.toObject()
+            rfInstanceObject.nodes = nodes
             const flowData = JSON.stringify(rfInstanceObject)
 
             if (!chatflow.id) {
                 const newChatflowBody = {
                     name: chatflowName,
                     deployed: false,
+                    isPublic: false,
                     flowData
                 }
                 createNewChatflowApi.request(newChatflowBody)
@@ -330,6 +341,12 @@ const Canvas = () => {
         dispatch({ type: SET_DIRTY })
     }
 
+    const checkIfUpsertAvailable = (nodes, edges) => {
+        const upsertNodeDetails = getUpsertDetails(nodes, edges)
+        if (upsertNodeDetails.length) setIsUpsertButtonEnabled(true)
+        else setIsUpsertButtonEnabled(false)
+    }
+
     // ==============================|| useEffect ||============================== //
 
     // Get specific chatflow successful
@@ -400,7 +417,13 @@ const Canvas = () => {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [testChatflowApi.error])
 
-    useEffect(() => setChatflow(canvasDataStore.chatflow), [canvasDataStore.chatflow])
+    useEffect(() => {
+        setChatflow(canvasDataStore.chatflow)
+        if (canvasDataStore.chatflow) {
+            const flowData = canvasDataStore.chatflow.flowData ? JSON.parse(canvasDataStore.chatflow.flowData) : []
+            checkIfUpsertAvailable(flowData.nodes || [], flowData.edges || [])
+        }
+    }, [canvasDataStore.chatflow])
 
     // Initialization
     useEffect(() => {
@@ -502,6 +525,7 @@ const Canvas = () => {
                                 onConnect={onConnect}
                                 onInit={setReactFlowInstance}
                                 fitView
+                                deleteKeyCode={canvas.canvasDialogShow ? null : ['Backspace', 'Delete']}
                                 minZoom={0.1}
                             >
                                 <Controls
@@ -514,6 +538,7 @@ const Canvas = () => {
                                 />
                                 <Background color='#aaa' gap={16} />
                                 <AddNodes nodesData={getNodesApi.data} node={selectedNode} />
+                                {isUpsertButtonEnabled && <VectorStorePopUp chatflowid={chatflowId} />}
                                 <ChatPopUp chatflowid={chatflowId} />
                             </ReactFlow>
                         </div>

@@ -1,11 +1,12 @@
 import { INode, INodeData, INodeParams } from '../../../src/Interface'
 import { BabyAGI } from './core'
 import { BaseChatModel } from 'langchain/chat_models/base'
-import { VectorStore } from 'langchain/vectorstores'
+import { VectorStore } from 'langchain/vectorstores/base'
 
 class BabyAGI_Agents implements INode {
     label: string
     name: string
+    version: number
     description: string
     type: string
     icon: string
@@ -16,9 +17,10 @@ class BabyAGI_Agents implements INode {
     constructor() {
         this.label = 'BabyAGI'
         this.name = 'babyAGI'
+        this.version = 1.0
         this.type = 'BabyAGI'
         this.category = 'Agents'
-        this.icon = 'babyagi.jpg'
+        this.icon = 'babyagi.svg'
         this.description = 'Task Driven Autonomous Agent which creates new task and reprioritizes task list based on objective'
         this.baseClasses = ['BabyAGI']
         this.inputs = [
@@ -45,8 +47,9 @@ class BabyAGI_Agents implements INode {
         const model = nodeData.inputs?.model as BaseChatModel
         const vectorStore = nodeData.inputs?.vectorStore as VectorStore
         const taskLoop = nodeData.inputs?.taskLoop as string
+        const k = (vectorStore as any)?.k ?? 4
 
-        const babyAgi = BabyAGI.fromLLM(model, vectorStore, parseInt(taskLoop, 10))
+        const babyAgi = BabyAGI.fromLLM(model, vectorStore, parseInt(taskLoop, 10), k)
         return babyAgi
     }
 
