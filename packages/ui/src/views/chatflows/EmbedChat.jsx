@@ -40,7 +40,7 @@ function a11yProps(index) {
 
 const embedPopupHtmlCode = (chatflowid) => {
     return `<script type="module">
-    import Chatbot from "https://cdn.jsdelivr.net/npm/flowise-embed/dist/web.js"
+    import Chatbot from "https://cdn.jsdelivr.net/gh/neria05/NeriFlowChatEmbed@latest/dist/web.js"
     Chatbot.init({
         chatflowid: "${chatflowid}",
         apiHost: "${baseURL}",
@@ -61,7 +61,7 @@ const App = () => {
 const embedFullpageHtmlCode = (chatflowid) => {
     return `<flowise-fullchatbot></flowise-fullchatbot>
 <script type="module">
-    import Chatbot from "https://cdn.jsdelivr.net/npm/flowise-embed/dist/web.js"
+    import Chatbot from "https://cdn.jsdelivr.net/gh/neria05/NeriFlowChatEmbed@latest/dist/web.js"
     Chatbot.initFull({
         chatflowid: "${chatflowid}",
         apiHost: "${baseURL}",
@@ -108,7 +108,7 @@ const chatwindowConfig = (isReact = false) => {
     return isReact
         ? `chatWindow: {
                     showTitle: true,
-                    title: 'Flowise Bot',
+                    title: 'Neriai Bot',
                     titleAvatarSrc: 'https://raw.githubusercontent.com/walkxcode/dashboard-icons/main/svg/google-messages.svg',
                     welcomeMessage: 'Hello! This is custom welcome message',
                     errorMessage: 'This is a custom error message',
@@ -143,8 +143,8 @@ const chatwindowConfig = (isReact = false) => {
                     footer: {
                         textColor: '#303235',
                         text: 'Powered by',
-                        company: 'Flowise',
-                        companyLink: 'https://flowiseai.com',
+                        company: 'Neriai',
+                        companyLink: 'https://Neriai.com',
                     }
                 }`
         : `chatWindow: {
@@ -184,15 +184,15 @@ const chatwindowConfig = (isReact = false) => {
                 footer: {
                     textColor: '#303235',
                     text: 'Powered by',
-                    company: 'Flowise',
-                    companyLink: 'https://flowiseai.com',
+                    company: 'Neriai',
+                    companyLink: 'https://Neriai.com',
                 }
             }`
 }
 
 const embedPopupHtmlCodeCustomization = (chatflowid) => {
     return `<script type="module">
-    import Chatbot from "https://cdn.jsdelivr.net/npm/flowise-embed/dist/web.js"
+    import Chatbot from "https://cdn.jsdelivr.net/gh/neria05/NeriFlowChatEmbed@latest/dist/web.js"
     Chatbot.init({
         chatflowid: "${chatflowid}",
         apiHost: "${baseURL}",
@@ -227,7 +227,7 @@ const App = () => {
 const embedFullpageHtmlCodeCustomization = (chatflowid) => {
     return `<flowise-fullchatbot></flowise-fullchatbot>
 <script type="module">
-    import Chatbot from "https://cdn.jsdelivr.net/npm/flowise-embed/dist/web.js"
+    import Chatbot from "https://cdn.jsdelivr.net/gh/neria05/NeriFlowChatEmbed@latest/dist/web.js"
     Chatbot.initFull({
         chatflowid: "${chatflowid}",
         apiHost: "${baseURL}",
@@ -324,7 +324,7 @@ const EmbedChat = ({ chatflowid }) => {
                                     >
                                         version
                                     </a>
-                                    :&nbsp;<code>{`https://cdn.jsdelivr.net/npm/flowise-embed@<version>/dist/web.js`}</code>
+                                    :&nbsp;<code>{`https://cdn.jsdelivr.net/gh/neria05/NeriFlowChatEmbed@latest/dist/web.js`}</code>
                                 </p>
                             </span>
                             <div style={{ height: 10 }}></div>
