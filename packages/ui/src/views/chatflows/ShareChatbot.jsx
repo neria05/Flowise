@@ -419,7 +419,7 @@ const ShareChatbot = ({ isSessionMemory }) => {
                 'titleAvatarSrc',
                 'Title Avatar Link',
                 'string',
-                `https://raw.githubusercontent.com/FlowiseAI/Flowise/main/assets/FloWiseAI_dark.png`
+                `https://raw.githubusercontent.com/neria05/Flowise/main/assets/FloWiseAI_dark.png`
             )}
             {textField(welcomeMessage, 'welcomeMessage', 'Welcome Message', 'string', 'Hello! This is custom welcome message')}
             {textField(errorMessage, 'errorMessage', 'Error Message', 'string', 'This is custom error message')}
